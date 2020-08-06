@@ -1,0 +1,110 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: cp-kafka-connect
+  labels:
+    app: cp-kafka-connect
+
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: cp-kafka-connect
+  template:
+    metadata:
+      labels:
+        app: cp-kafka-connect
+      annotations:
+        prometheus.io/scrape: "true"
+        prometheus.io/port: "5556"
+    spec:
+      initContainers:
+      - name: connector
+        image: ffoysal/swiss-knife
+        command: ["sh","-c", "wget https://dev.mysql.com/get/Downloads/Connector-J/mysql-connector-java-5.1.48.zip && unzip mysql-connector-java-5.1.48.zip && mkdir -p /tmp/connector && cp mysql-connector-java-5.1.48/mysql-connector-java-5.1.48.jar /tmp/connector/"]
+        volumeMounts:
+        - name: empty
+          mountPath: /tmp/connector
+      containers:
+        - name: prometheus-jmx-exporter
+          image: "solsson/kafka-prometheus-jmx-exporter@sha256:6f82e2b0464f50da8104acd7363fb9b995001ddff77d248379f8788e78946143"
+          imagePullPolicy: "IfNotPresent"
+          command:
+          - java
+          - -XX:+UnlockExperimentalVMOptions
+          - -XX:+UseCGroupMemoryLimitForHeap
+          - -XX:MaxRAMFraction=1
+          - -XshowSettings:vm
+          - -jar
+          - jmx_prometheus_httpserver.jar
+          - "5556"
+          - /etc/jmx-kafka-connect/jmx-kafka-connect-prometheus.yml
+          ports:
+          - containerPort: 5556
+          volumeMounts:
+          - name: jmx-config
+            mountPath: /etc/jmx-kafka-connect
+        - name: cp-kafka-connect-server
+          image: "confluentinc/cp-kafka-connect:5.5.0"
+          imagePullPolicy: "IfNotPresent"
+          volumeMounts:
+          - name: empty
+            mountPath: /usr/share/java/kafka-connect-jdbc/mysql-connector-java-5.1.48.jar
+            subPath: mysql-connector-java-5.1.48.jar
+          ports:
+            - name: kafka-connect
+              containerPort: 8083
+              protocol: TCP
+            - containerPort: 5555
+              name: jmx
+          resources: {}
+            
+          env:
+            - name: CONNECT_REST_ADVERTISED_HOST_NAME
+              valueFrom:
+                fieldRef:
+                  fieldPath: status.podIP
+            - name: CONNECT_BOOTSTRAP_SERVERS
+              value: PLAINTEXT://cp-kafka-headless:9092
+            - name: CONNECT_GROUP_ID
+              value: mokul
+            - name: CONNECT_CONFIG_STORAGE_TOPIC
+              value: cp-kafka-connect-config
+            - name: CONNECT_OFFSET_STORAGE_TOPIC
+              value: cp-kafka-connect-offset
+            - name: CONNECT_STATUS_STORAGE_TOPIC
+              value: cp-kafka-connect-status
+            - name: CONNECT_KEY_CONVERTER_SCHEMA_REGISTRY_URL
+              value: http://cp-schema-registry:8081
+            - name: CONNECT_VALUE_CONVERTER_SCHEMA_REGISTRY_URL
+              value: http://cp-schema-registry:8081
+            - name: KAFKA_HEAP_OPTS
+              value: "-Xms512M -Xmx512M"
+            - name: "CONNECT_CONFIG_STORAGE_REPLICATION_FACTOR"
+              value: "3"
+            - name: "CONNECT_INTERNAL_KEY_CONVERTER"
+              value: "org.apache.kafka.connect.json.JsonConverter"
+            - name: "CONNECT_INTERNAL_VALUE_CONVERTER"
+              value: "org.apache.kafka.connect.json.JsonConverter"
+            - name: "CONNECT_KEY_CONVERTER"
+              value: "io.confluent.connect.avro.AvroConverter"
+            - name: "CONNECT_KEY_CONVERTER_SCHEMAS_ENABLE"
+              value: "false"
+            - name: "CONNECT_OFFSET_STORAGE_REPLICATION_FACTOR"
+              value: "3"
+            - name: "CONNECT_PLUGIN_PATH"
+              value: "/usr/share/java,/usr/share/confluent-hub-components"
+            - name: "CONNECT_STATUS_STORAGE_REPLICATION_FACTOR"
+              value: "3"
+            - name: "CONNECT_VALUE_CONVERTER"
+              value: "io.confluent.connect.avro.AvroConverter"
+            - name: "CONNECT_VALUE_CONVERTER_SCHEMAS_ENABLE"
+              value: "false"
+            - name: KAFKA_JMX_PORT
+              value: "5555"
+      volumes:
+      - name: jmx-config
+        configMap:
+          name: cp-kafka-connect-jmx-configmap
+      - name: empty
+        emptyDir: {}

@@ -1,0 +1,47 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: cp-control-center
+  labels:
+    app: cp-control-center
+
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: cp-control-center
+  template:
+    metadata:
+      labels:
+        app: cp-control-center
+      annotations:
+        prometheus.io/scrape: "true"
+        prometheus.io/port: "5556"
+    spec:
+      containers:
+        - name: cp-control-center
+          image: "confluentinc/cp-enterprise-control-center:5.5.0"
+          imagePullPolicy: IfNotPresent
+          ports:
+            - name: cc-http
+              containerPort: 9021
+              protocol: TCP
+          resources: {}
+            
+          env:
+            - name: CONTROL_CENTER_BOOTSTRAP_SERVERS
+              value: PLAINTEXT://cp-kafka-headless:9092
+            - name: CONTROL_CENTER_ZOOKEEPER_CONNECT
+              value: 
+            - name: CONTROL_CENTER_CONNECT_CLUSTER
+              value: http://cp-kafka-connect:8083
+            - name: CONTROL_CENTER_KSQL_URL
+              value: http://cp-ksql-server:8088
+            - name: CONTROL_CENTER_KSQL_ADVERTISED_URL
+              value: http://cp-ksql-server:8088
+            - name: CONTROL_CENTER_SCHEMA_REGISTRY_URL
+              value: http://cp-schema-registry:8081
+            - name: KAFKA_HEAP_OPTS
+              value: "-Xms512M -Xmx512M"
+            - name: "CONTROL_CENTER_REPLICATION_FACTOR"
+              value: "1"

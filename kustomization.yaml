@@ -1,0 +1,9 @@
+bases:
+- control-center
+- kafka
+- kafka-connect
+- ksql
+- schema-registry
+- zookeeper
+- mysql
+- postgres
