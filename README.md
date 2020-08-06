@@ -1,5 +1,7 @@
 # Kafka On Kubernetes by Kustomize
 
+**WARNING: This is purly for learning purpose not for production use!!!**
+
 In this tutorial we will install kafka in a kubernetes cluster (tried in docker-desktop for mac). After deployment is done will do the following
 
 - create a topic
@@ -225,10 +227,16 @@ MySQL [mydemo]> select * from mytest;
 
 ```
 
-incase if you want to delete connector 
+incase if you want to delete connector
 
 ```console
 curl -X DELETE http://cp-kafka-connect:8083/connectors/sink-jdbc-mysql-mydemo
+```
+
+To remove/clean yoru kafka installation
+
+```console
+kubectl delete -f github.com/ffoysal/k-on-k
 ```
 
 TODO:
